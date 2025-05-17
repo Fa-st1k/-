@@ -1,0 +1,381 @@
+import sys
+import random
+import warnings
+from PyQt5.QtCore import QUrl, Qt, QTimer, QRectF, PYQT_VERSION_STR
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QVBoxLayout,
+                            QWidget, QLineEdit, QToolBar, QPushButton, QLabel)
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
+from PyQt5.QtGui import QIcon, QPalette, QColor, QPainter, QFont, QKeyEvent
+
+
+if PYQT_VERSION_STR >= '5.15':
+    warnings.filterwarnings("ignore", category=DeprecationWarning,
+                          message="sipPyTypeDict.*is deprecated")
+    
+class FlappyBirdGame(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setFocusPolicy(Qt.StrongFocus)
+
+        # Game variables
+        self.bird_y = 250
+        self.bird_velocity = 0
+        self.gravity = 0.5
+        self.pipes = []
+        self.pipe_width = 60
+        self.gap_size = 150
+        self.pipe_speed = 3
+        self.score = 0
+        self.game_active = False
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.game_loop)
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        self.start_btn = QPushButton("Start Game", self)
+        self.start_btn.setStyleSheet("""
+            QPushButton {
+                background: #4CAF50;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                font-size: 16px;
+            }
+            QPushButton:hover {
+                background: #45a049;
+            }
+        """)
+        self.start_btn.move(150, 200)
+        self.start_btn.clicked.connect(self.start_game)
+
+        self.score_label = QLabel(f"Score: {self.score}", self)
+        self.score_label.setStyleSheet("font-size: 20px; color: white;")
+        self.score_label.move(10, 10)
+
+        self.game_over_label = QLabel("GAME OVER", self)
+        self.game_over_label.setStyleSheet("font-size: 30px; color: red; font-weight: bold;")
+        self.game_over_label.move(100, 150)
+        self.game_over_label.hide()
+
+    def start_game(self):
+        self.bird_y = 250
+        self.bird_velocity = 0
+        self.pipes = []
+        self.score = 0
+        self.game_active = True
+        self.start_btn.hide()
+        self.game_over_label.hide()
+        self.score_label.setText(f"Score: {self.score}")
+        self.timer.start(16) 
+
+    def game_loop(self):
+        if not self.game_active:
+            return
+
+        self.bird_velocity += self.gravity
+        self.bird_y += self.bird_velocity
+
+        if len(self.pipes) == 0 or self.pipes[-1]["x"] < 300:
+            pipe_height = random.randint(50, 300)
+            self.pipes.append({
+                "x": 400,
+                "top_height": pipe_height,
+                "bottom_height": 400 - pipe_height - self.gap_size,
+                "passed": False
+            })
+
+        for pipe in self.pipes[:]:
+            pipe["x"] -= self.pipe_speed
+
+            if pipe["x"] + self.pipe_width < 50 and not pipe["passed"]:
+                self.score += 1
+                pipe["passed"] = True
+                self.score_label.setText(f"Score: {self.score}")
+
+            if pipe["x"] < -self.pipe_width:
+                self.pipes.remove(pipe)
+
+        bird_rect = QRectF(50, self.bird_y, 30, 30)
+
+        if self.bird_y > 400 or self.bird_y < 0:
+            self.game_over()
+
+        for pipe in self.pipes:
+            top_pipe = QRectF(pipe["x"], 0, self.pipe_width, pipe["top_height"])
+            bottom_pipe = QRectF(pipe["x"], 400 - pipe["bottom_height"],
+                                 self.pipe_width, pipe["bottom_height"])
+
+            if bird_rect.intersects(top_pipe) or bird_rect.intersects(bottom_pipe):
+                self.game_over()
+                break
+
+        self.update()
+
+    def game_over(self):
+        self.game_active = False
+        self.timer.stop()
+        self.game_over_label.show()
+        self.start_btn.show()
+        self.start_btn.setText("Play Again")
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if event.key() == Qt.Key_Space and self.game_active:
+            self.bird_velocity = -8  
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        painter.fillRect(0, 0, 400, 400, QColor(100, 180, 255))
+
+        painter.fillRect(0, 380, 400, 20, QColor(100, 70, 0))
+
+        painter.setBrush(QColor(255, 255, 0))
+        painter.drawEllipse(50, self.bird_y, 30, 30)
+
+        painter.setBrush(QColor(0, 180, 0))
+        for pipe in self.pipes:
+            painter.drawRect(pipe["x"], 0, self.pipe_width, pipe["top_height"])
+            painter.drawRect(pipe["x"], 400 - pipe["bottom_height"],
+                             self.pipe_width, pipe["bottom_height"])
+
+        painter.end()
+
+
+class BrowserTab(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.browser = QWebEngineView()
+        self.browser.setUrl(QUrl("https://securemaps.pythonanywhere.com/"))
+
+        self.url_bar = QLineEdit()
+        self.url_bar.setStyleSheet("""
+            QLineEdit {
+                border: 2px solid #4CAF50;
+                border-radius: 10px;
+                padding: 8px 15px;
+                background: #2d2d2d;
+                color: #ffffff;
+                selection-background-color: #4CAF50;
+                font-size: 14px;
+            }
+        """)
+        self.url_bar.returnPressed.connect(self.navigate_to_url)
+        self.browser.urlChanged.connect(self.update_url_bar)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+        layout.addWidget(self.url_bar)
+        layout.addWidget(self.browser)
+        self.setLayout(layout)
+
+    def navigate_to_url(self):
+        url = self.url_bar.text().strip()
+        if not url:
+            return
+
+        if '.' in url and ' ' not in url:
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            self.browser.setUrl(QUrl(url))
+        else:
+            search_url = f"https://www.google.com/search?q={url.replace(' ', '+')}"
+            self.browser.setUrl(QUrl(search_url))
+
+    def update_url_bar(self, q):
+        self.url_bar.setText(q.toString())
+
+
+class CustomBrowser(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("SecureMaps Browser")
+        self.setWindowIcon(QIcon("icon.png"))
+        self.resize(1200, 800)
+        self.set_dark_theme()
+
+        self.tabs = QTabWidget()
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(self.close_tab)
+        self.style_tabs()
+
+        self.toolbar = QToolBar()
+        self.toolbar.setMovable(False)
+        self.setup_toolbar()
+
+        self.add_new_tab()
+        self.setCentralWidget(self.tabs)
+
+    def set_dark_theme(self):
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor(53, 53, 53))
+        palette.setColor(QPalette.WindowText, Qt.white)
+        palette.setColor(QPalette.Base, QColor(25, 25, 25))
+        palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
+        palette.setColor(QPalette.Text, Qt.white)
+        palette.setColor(QPalette.Button, QColor(53, 53, 53))
+        palette.setColor(QPalette.ButtonText, Qt.white)
+        self.setPalette(palette)
+
+    def style_tabs(self):
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #444;
+                background: #2d2d2d;
+            }
+            QTabBar::tab {
+                background: #2d2d2d;
+                color: #ffffff;
+                padding: 8px;
+                border: 1px solid #444;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background: #4CAF50;
+                border-color: #4CAF50;
+            }
+            QTabBar::tab:hover {
+                background: #3d3d3d;
+            }
+        """)
+
+    def setup_toolbar(self):
+        self.toolbar.setStyleSheet("""
+            QToolBar {
+                background: #2d2d2d;
+                border: none;
+                padding: 5px;
+                spacing: 5px;
+            }
+        """)
+
+        nav_actions = [
+            ("Back", "←", self.navigate_back),
+            ("Forward", "→", self.navigate_forward),
+            ("Refresh", "⟳", self.refresh_page),
+            ("Home", "⌂", self.go_home),
+        ]
+
+        for text, icon, callback in nav_actions:
+            btn = QPushButton(icon)
+            btn.setToolTip(text)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: transparent;
+                    border: none;
+                    padding: 5px;
+                    font-size: 16px;
+                    color: white;
+                }
+                QPushButton:hover {
+                    background: #3d3d3d;
+                    border-radius: 3px;
+                }
+            """)
+            btn.clicked.connect(callback)
+            self.toolbar.addWidget(btn)
+
+        game_btn = QPushButton("🎮 Flappy Bird")
+        game_btn.setToolTip("Play Flappy Bird")
+        game_btn.setStyleSheet("""
+            QPushButton {
+                background: #FF5722;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background: #E64A19;
+            }
+        """)
+        game_btn.clicked.connect(self.open_game_tab)
+        self.toolbar.addWidget(game_btn)
+
+        new_tab_btn = QPushButton("+ New Tab")
+        new_tab_btn.setToolTip("New Tab")
+        new_tab_btn.setStyleSheet("""
+            QPushButton {
+                background: #4CAF50;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background: #45a049;
+            }
+        """)
+        new_tab_btn.clicked.connect(self.add_new_tab)
+        self.toolbar.addWidget(new_tab_btn)
+
+        self.addToolBar(self.toolbar)
+
+    def open_game_tab(self):
+        game_tab = QWidget()
+        layout = QVBoxLayout()
+        game = FlappyBirdGame()
+        layout.addWidget(game)
+        game_tab.setLayout(layout)
+
+        index = self.tabs.addTab(game_tab, "Flappy Bird")
+        self.tabs.setCurrentIndex(index)
+
+    def add_new_tab(self, url=None):
+        tab = BrowserTab()
+        if url:
+            tab.navigate_to_url(url)
+
+        index = self.tabs.addTab(tab, "New Tab")
+        tab.browser.titleChanged.connect(lambda title, tab=tab: self.update_tab_title(tab, title))
+        self.tabs.setCurrentIndex(index)
+        tab.url_bar.setFocus()
+
+    def update_tab_title(self, tab, title):
+        index = self.tabs.indexOf(tab)
+        if index != -1:
+            self.tabs.setTabText(index, title[:20] + (title[20:] and '...'))
+
+    def close_tab(self, index):
+        if self.tabs.count() > 1:
+            self.tabs.removeTab(index)
+
+    def navigate_back(self):
+        current_tab = self.current_browser()
+        if current_tab:
+            current_tab.browser.back()
+
+    def navigate_forward(self):
+        current_tab = self.current_browser()
+        if current_tab:
+            current_tab.browser.forward()
+
+    def refresh_page(self):
+        current_tab = self.current_browser()
+        if current_tab:
+            current_tab.browser.reload()
+
+    def go_home(self):
+        current_tab = self.current_browser()
+        if current_tab:
+            current_tab.browser.setUrl(QUrl("https://securemaps.pythonanywhere.com/"))
+
+    def current_browser(self):
+        current_widget = self.tabs.currentWidget()
+        if isinstance(current_widget, BrowserTab):
+            return current_widget
+        return None
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+
+    browser = CustomBrowser()
+    browser.show()
+    sys.exit(app.exec_())

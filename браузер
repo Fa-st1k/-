@@ -3,15 +3,15 @@ import random
 import warnings
 from PyQt5.QtCore import QUrl, Qt, QTimer, QRectF, PYQT_VERSION_STR
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QTabWidget, QVBoxLayout,
-                            QWidget, QLineEdit, QToolBar, QPushButton, QLabel)
+                             QWidget, QLineEdit, QToolBar, QPushButton, QLabel)
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtGui import QIcon, QPalette, QColor, QPainter, QFont, QKeyEvent
 
-
 if PYQT_VERSION_STR >= '5.15':
     warnings.filterwarnings("ignore", category=DeprecationWarning,
-                          message="sipPyTypeDict.*is deprecated")
-    
+                            message="sipPyTypeDict.*is deprecated")
+
+
 class FlappyBirdGame(QWidget):
     def __init__(self):
         super().__init__()
@@ -68,7 +68,7 @@ class FlappyBirdGame(QWidget):
         self.start_btn.hide()
         self.game_over_label.hide()
         self.score_label.setText(f"Score: {self.score}")
-        self.timer.start(16) 
+        self.timer.start(16)
 
     def game_loop(self):
         if not self.game_active:
@@ -122,7 +122,7 @@ class FlappyBirdGame(QWidget):
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key_Space and self.game_active:
-            self.bird_velocity = -8  
+            self.bird_velocity = -8
 
     def paintEvent(self, event):
         painter = QPainter(self)

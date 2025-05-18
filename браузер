@@ -16,30 +16,40 @@ class FlappyBirdGame(QWidget):
     def __init__(self):
         super().__init__()
         self.setFocusPolicy(Qt.StrongFocus)
+        self.init_game()
+        self.setup_ui()
 
-        # Game variables
+    def init_game(self):
+        """Инициализация игровых переменных"""
         self.bird_y = 250
         self.bird_velocity = 0
         self.gravity = 0.5
+        self.jump_force = -8
         self.pipes = []
         self.pipe_width = 60
         self.gap_size = 150
         self.pipe_speed = 3
         self.score = 0
         self.game_active = False
+        self.game_over = False
+        
+        # Таймер для игрового цикла
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.game_loop)
-
-        self.setup_ui()
+        self.timer.setInterval(16)  # ~60 FPS
 
     def setup_ui(self):
+        """Настройка интерфейса"""
+        self.setFixedSize(400, 400)
+
         self.start_btn = QPushButton("Start Game", self)
+        self.start_btn.setGeometry(150, 200, 100, 40)
         self.start_btn.setStyleSheet("""
             QPushButton {
                 background: #4CAF50;
                 color: white;
                 border: none;
-                padding: 10px 20px;
+                padding: 10px;
                 border-radius: 5px;
                 font-size: 16px;
             }
@@ -47,28 +57,33 @@ class FlappyBirdGame(QWidget):
                 background: #45a049;
             }
         """)
-        self.start_btn.move(150, 200)
         self.start_btn.clicked.connect(self.start_game)
 
+        # Лейбл счета
         self.score_label = QLabel(f"Score: {self.score}", self)
         self.score_label.setStyleSheet("font-size: 20px; color: white;")
         self.score_label.move(10, 10)
 
+        # Лейбл Game Over
         self.game_over_label = QLabel("GAME OVER", self)
-        self.game_over_label.setStyleSheet("font-size: 30px; color: red; font-weight: bold;")
-        self.game_over_label.move(100, 150)
+        self.game_over_label.setStyleSheet("""
+            font-size: 30px; 
+            color: red; 
+            font-weight: bold;
+        """)
+        self.game_over_label.setGeometry(100, 150, 200, 40)
+        self.game_over_label.setAlignment(Qt.AlignCenter)
         self.game_over_label.hide()
 
     def start_game(self):
-        self.bird_y = 250
-        self.bird_velocity = 0
-        self.pipes = []
-        self.score = 0
+        """Начало новой игры"""
+        self.init_game()
         self.game_active = True
         self.start_btn.hide()
         self.game_over_label.hide()
         self.score_label.setText(f"Score: {self.score}")
-        self.timer.start(16)
+        self.timer.start()
+        self.setFocus()
 
     def game_loop(self):
         if not self.game_active:
@@ -78,7 +93,7 @@ class FlappyBirdGame(QWidget):
         self.bird_y += self.bird_velocity
 
         if len(self.pipes) == 0 or self.pipes[-1]["x"] < 300:
-            pipe_height = random.randint(50, 300)
+            pipe_height = random.randint(50, 250)
             self.pipes.append({
                 "x": 400,
                 "top_height": pipe_height,
@@ -99,30 +114,34 @@ class FlappyBirdGame(QWidget):
 
         bird_rect = QRectF(50, self.bird_y, 30, 30)
 
-        if self.bird_y > 400 or self.bird_y < 0:
-            self.game_over()
+        if self.bird_y > 370 or self.bird_y < 0:
+            self.end_game()
 
         for pipe in self.pipes:
             top_pipe = QRectF(pipe["x"], 0, self.pipe_width, pipe["top_height"])
             bottom_pipe = QRectF(pipe["x"], 400 - pipe["bottom_height"],
-                                 self.pipe_width, pipe["bottom_height"])
+                               self.pipe_width, pipe["bottom_height"])
 
             if bird_rect.intersects(top_pipe) or bird_rect.intersects(bottom_pipe):
-                self.game_over()
+                self.end_game()
                 break
 
         self.update()
 
-    def game_over(self):
+    def end_game(self):
         self.game_active = False
+        self.game_over = True
         self.timer.stop()
         self.game_over_label.show()
         self.start_btn.show()
         self.start_btn.setText("Play Again")
+        self.start_btn.setGeometry(150, 250, 100, 40)
 
     def keyPressEvent(self, event: QKeyEvent):
-        if event.key() == Qt.Key_Space and self.game_active:
-            self.bird_velocity = -8
+        if (event.key() == Qt.Key_Space or event.key() == Qt.Key_Up) and self.game_active:
+            self.bird_velocity = self.jump_force
+        elif event.key() == Qt.Key_Escape and self.game_over:
+            self.start_game()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -137,9 +156,11 @@ class FlappyBirdGame(QWidget):
 
         painter.setBrush(QColor(0, 180, 0))
         for pipe in self.pipes:
+            # Верхняя труба
             painter.drawRect(pipe["x"], 0, self.pipe_width, pipe["top_height"])
+            # Нижняя труба
             painter.drawRect(pipe["x"], 400 - pipe["bottom_height"],
-                             self.pipe_width, pipe["bottom_height"])
+                           self.pipe_width, pipe["bottom_height"])
 
         painter.end()
 
@@ -187,8 +208,7 @@ class BrowserTab(QWidget):
 
     def update_url_bar(self, q):
         self.url_bar.setText(q.toString())
-
-
+    
 class CustomBrowser(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -370,7 +390,6 @@ class CustomBrowser(QMainWindow):
         if isinstance(current_widget, BrowserTab):
             return current_widget
         return None
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
